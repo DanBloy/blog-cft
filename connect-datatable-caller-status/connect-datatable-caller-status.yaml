@@ -1,0 +1,303 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Amazon Connect DataTable for VIP and BLOCKED caller management with sample contact flow
+
+Parameters:
+  ConnectInstanceId:
+    Type: String
+    Description: Amazon Connect Instance ID
+    AllowedPattern: '^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$'
+
+Resources:
+  CallerDataTable:
+    Type: AWS::Connect::DataTable
+    Properties:
+      InstanceArn: !Sub 'arn:aws:connect:${AWS::Region}:${AWS::AccountId}:instance/${ConnectInstanceId}'
+      Name: CallerStatusTable
+      Description: Table to store VIP and BLOCKED caller status
+      TimeZone: America/New_York
+      Status: PUBLISHED
+      ValueLockLevel: NONE
+
+  E164Attribute:
+    Type: AWS::Connect::DataTableAttribute
+    Properties:
+      DataTableArn: !GetAtt CallerDataTable.Arn
+      InstanceArn: !Sub 'arn:aws:connect:${AWS::Region}:${AWS::AccountId}:instance/${ConnectInstanceId}'
+      Name: e164
+      ValueType: TEXT
+      Primary: true
+      Description: E.164 formatted phone number
+
+  StatusAttribute:
+    Type: AWS::Connect::DataTableAttribute
+    Properties:
+      DataTableArn: !GetAtt CallerDataTable.Arn
+      InstanceArn: !Sub 'arn:aws:connect:${AWS::Region}:${AWS::AccountId}:instance/${ConnectInstanceId}'
+      Name: status
+      ValueType: TEXT
+      Primary: false
+      Description: Caller status (VIP or BLOCKED)
+      Validation:
+        Enum:
+          Strict: true
+          Values:
+            - VIP
+            - BLOCKED
+
+  SampleVIPRecord:
+    Type: AWS::Connect::DataTableRecord
+    DependsOn:
+      - E164Attribute
+      - StatusAttribute
+    Properties:
+      InstanceArn: !Sub 'arn:aws:connect:${AWS::Region}:${AWS::AccountId}:instance/${ConnectInstanceId}'
+      DataTableArn: !GetAtt CallerDataTable.Arn
+      DataTableRecord:
+        PrimaryValues:
+          - AttributeId: !GetAtt E164Attribute.AttributeId
+            AttributeValue: '+12025551234'
+        Values:
+          - AttributeId: !GetAtt StatusAttribute.AttributeId
+            AttributeValue: 'VIP'
+
+  SampleCallerStatusFlow:
+    Type: AWS::Connect::ContactFlow
+    DependsOn: CallerDataTable
+    Properties:
+      InstanceArn: !Sub 'arn:aws:connect:${AWS::Region}:${AWS::AccountId}:instance/${ConnectInstanceId}'
+      Name: sample-caller-status-routing
+      Description: Sample flow demonstrating VIP and BLOCKED caller routing using data tables
+      Type: CONTACT_FLOW
+      State: ACTIVE
+      Content: !Sub |
+        {
+          "Version": "2019-10-30",
+          "StartAction": "8bbe65b0-b9ac-4c25-ade8-1ed9488b87bc",
+          "Metadata": {
+            "entryPointPosition": {
+              "x": 40,
+              "y": 40
+            },
+            "ActionMetadata": {
+              "c6a89839-a942-420b-a659-bc118cc643dd": {
+                "position": {
+                  "x": 939.2,
+                  "y": 41.6
+                }
+              },
+              "21212734-e640-41b4-823d-bc27ae34f41a": {
+                "position": {
+                  "x": 943.2,
+                  "y": 226.4
+                }
+              },
+              "0661d90f-279e-4615-b557-1da8dc00699d": {
+                "position": {
+                  "x": 945.6,
+                  "y": 411.2
+                }
+              },
+              "918c456e-73e0-45bc-b6b9-0ecca035465d": {
+                "position": {
+                  "x": 1227.2,
+                  "y": 41.6
+                }
+              },
+              "7c3207b1-b545-49cb-8131-549b708e5330": {
+                "position": {
+                  "x": 676,
+                  "y": 39.2
+                },
+                "conditionMetadata": [
+                  {
+                    "id": "8735cb2f-bc3c-471a-ba39-1908bb419018",
+                    "operator": {
+                      "name": "Equals",
+                      "value": "Equals",
+                      "shortDisplay": "="
+                    },
+                    "value": "VIP"
+                  },
+                  {
+                    "id": "f531213f-da46-4c71-b964-ebdee796ea28",
+                    "operator": {
+                      "name": "Equals",
+                      "value": "Equals",
+                      "shortDisplay": "="
+                    },
+                    "value": "BLOCKED"
+                  }
+                ]
+              },
+              "8bbe65b0-b9ac-4c25-ade8-1ed9488b87bc": {
+                "position": {
+                  "x": 157.6,
+                  "y": 44
+                }
+              },
+              "2dd684a5-cfdd-4012-8c65-e4ce130ff8a3": {
+                "position": {
+                  "x": 409.6,
+                  "y": 40.8
+                },
+                "parameters": {
+                  "DataTableId": {
+                    "displayName": "CallerStatusTable"
+                  }
+                }
+              }
+            },
+            "Annotations": [],
+            "name": "sample-caller-status-routing",
+            "description": "Sample flow demonstrating VIP and BLOCKED caller routing using data tables",
+            "type": "contactFlow",
+            "status": "published",
+            "hash": {}
+          },
+          "Actions": [
+            {
+              "Parameters": {
+                "Text": "Hello, VIP Caller!"
+              },
+              "Identifier": "c6a89839-a942-420b-a659-bc118cc643dd",
+              "Type": "MessageParticipant",
+              "Transitions": {
+                "NextAction": "918c456e-73e0-45bc-b6b9-0ecca035465d",
+                "Errors": [
+                  {
+                    "NextAction": "918c456e-73e0-45bc-b6b9-0ecca035465d",
+                    "ErrorType": "NoMatchingError"
+                  }
+                ]
+              }
+            },
+            {
+              "Parameters": {
+                "Text": "Blocked caller!"
+              },
+              "Identifier": "21212734-e640-41b4-823d-bc27ae34f41a",
+              "Type": "MessageParticipant",
+              "Transitions": {
+                "NextAction": "918c456e-73e0-45bc-b6b9-0ecca035465d",
+                "Errors": [
+                  {
+                    "NextAction": "918c456e-73e0-45bc-b6b9-0ecca035465d",
+                    "ErrorType": "NoMatchingError"
+                  }
+                ]
+              }
+            },
+            {
+              "Parameters": {
+                "Text": "Hey there "
+              },
+              "Identifier": "0661d90f-279e-4615-b557-1da8dc00699d",
+              "Type": "MessageParticipant",
+              "Transitions": {
+                "NextAction": "918c456e-73e0-45bc-b6b9-0ecca035465d",
+                "Errors": [
+                  {
+                    "NextAction": "918c456e-73e0-45bc-b6b9-0ecca035465d",
+                    "ErrorType": "NoMatchingError"
+                  }
+                ]
+              }
+            },
+            {
+              "Parameters": {},
+              "Identifier": "918c456e-73e0-45bc-b6b9-0ecca035465d",
+              "Type": "DisconnectParticipant",
+              "Transitions": {}
+            },
+            {
+              "Parameters": {
+                "ComparisonValue": "$.DataTables.checknumber.status"
+              },
+              "Identifier": "7c3207b1-b545-49cb-8131-549b708e5330",
+              "Type": "Compare",
+              "Transitions": {
+                "NextAction": "0661d90f-279e-4615-b557-1da8dc00699d",
+                "Conditions": [
+                  {
+                    "NextAction": "c6a89839-a942-420b-a659-bc118cc643dd",
+                    "Condition": {
+                      "Operator": "Equals",
+                      "Operands": [
+                        "VIP"
+                      ]
+                    }
+                  },
+                  {
+                    "NextAction": "21212734-e640-41b4-823d-bc27ae34f41a",
+                    "Condition": {
+                      "Operator": "Equals",
+                      "Operands": [
+                        "BLOCKED"
+                      ]
+                    }
+                  }
+                ],
+                "Errors": [
+                  {
+                    "NextAction": "0661d90f-279e-4615-b557-1da8dc00699d",
+                    "ErrorType": "NoMatchingCondition"
+                  }
+                ]
+              }
+            },
+            {
+              "Parameters": {
+                "FlowLoggingBehavior": "Enabled"
+              },
+              "Identifier": "8bbe65b0-b9ac-4c25-ade8-1ed9488b87bc",
+              "Type": "UpdateFlowLoggingBehavior",
+              "Transitions": {
+                "NextAction": "2dd684a5-cfdd-4012-8c65-e4ce130ff8a3"
+              }
+            },
+            {
+              "Parameters": {
+                "DataTableId": "${CallerDataTable.Arn}",
+                "Queries": [
+                  {
+                    "QueryName": "checknumber",
+                    "Attributes": [
+                      "status"
+                    ],
+                    "PrimaryValues": [
+                      {
+                        "AttributeName": "e164",
+                        "Value": "$.CustomerEndpoint.Address"
+                      }
+                    ]
+                  }
+                ]
+              },
+              "Identifier": "2dd684a5-cfdd-4012-8c65-e4ce130ff8a3",
+              "Type": "EvaluateDataTableValues",
+              "Transitions": {
+                "NextAction": "7c3207b1-b545-49cb-8131-549b708e5330",
+                "Errors": [
+                  {
+                    "NextAction": "7c3207b1-b545-49cb-8131-549b708e5330",
+                    "ErrorType": "NoMatchingError"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+
+Outputs:
+  DataTableArn:
+    Description: DataTable ARN
+    Value: !GetAtt CallerDataTable.Arn
+  E164AttributeId:
+    Description: E164 Attribute ID
+    Value: !GetAtt E164Attribute.AttributeId
+  StatusAttributeId:
+    Description: Status Attribute ID
+    Value: !GetAtt StatusAttribute.AttributeId
+  ContactFlowArn:
+    Description: Sample Contact Flow ARN
+    Value: !GetAtt SampleCallerStatusFlow.ContactFlowArn
